@@ -1,54 +1,60 @@
+/* --- Root Variables & Base --- */
 :root {
-  --sidebar-w: 70px;
+  --sidebar-w: 75px;
   --primary: #10b981;
+  --primary-glow: rgba(16, 185, 129, 0.15);
   --bg-main: #0a0a0a;
-  --bg-side: #000;
+  --bg-side: #000000;
   --border: rgba(255, 255, 255, 0.08);
-  --card: #141414;
+  --card: #121212;
+  --text-main: #eeeeee;
+  --text-muted: #888888;
 }
+
+* { box-sizing: border-box; }
 
 body {
   background: var(--bg-main);
-  color: #fff;
-  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--text-main);
+  font-family: 'Inter', -apple-system, sans-serif;
   margin: 0;
   height: 100vh;
+  overflow: hidden; /* Prevent body scroll, use workspace-content scroll */
 }
 
+/* --- App Layout --- */
 .app-wrapper {
   display: flex;
+  width: 100vw;
   height: 100vh;
 }
 
-/* Slim Sidebar */
 .app-sidebar {
   width: var(--sidebar-w);
+  flex-shrink: 0; /* Fix: Prevent sidebar from squishing */
   background: var(--bg-side);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 0;
+  padding: 25px 0;
 }
 
-.app-logo { font-size: 1.8rem; margin-bottom: 40px; }
+.app-logo { font-size: 1.8rem; margin-bottom: 40px; filter: drop-shadow(0 0 8px var(--primary-glow)); }
 
-.app-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
+.app-nav { display: flex; flex-direction: column; gap: 15px; }
 
 .nav-item {
-  width: 45px;
-  height: 45px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 12px;
   cursor: pointer;
   font-size: 1.2rem;
-  transition: 0.2s;
+  transition: all 0.2s ease;
+  color: var(--text-muted);
 }
 
 .nav-item:hover, .nav-item.active {
@@ -56,27 +62,36 @@ body {
   color: var(--primary);
 }
 
-/* Workspace Layout */
+/* --- Main Workspace --- */
 .app-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  min-width: 0; /* Fix: Allow flex items to shrink below content width */
 }
 
 .workspace-header {
   padding: 20px 40px;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
+  z-index: 10;
 }
 
 .search-container {
-  max-width: 600px;
-  background: rgba(255, 255, 255, 0.03);
+  max-width: 500px;
+  background: #111;
   border: 1px solid var(--border);
   border-radius: 10px;
   display: flex;
   align-items: center;
-  padding: 8px 15px;
+  padding: 6px 15px;
+  transition: border-color 0.2s;
+}
+
+.search-container:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
 }
 
 #search {
@@ -84,36 +99,24 @@ body {
   border: none;
   color: #fff;
   flex: 1;
-  padding: 5px 10px;
+  padding: 8px;
   outline: none;
+  font-size: 0.95rem;
 }
 
-.search-kbd {
-  font-size: 0.7rem;
-  background: #222;
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: #666;
-}
+.search-icon { margin-right: 8px; opacity: 0.5; }
 
+/* --- Content Areas --- */
 .workspace-content {
   flex: 1;
   overflow-y: auto;
-  padding: 30px 40px;
+  padding: 40px;
 }
 
-.view-title {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  color: #666;
-  letter-spacing: 2px;
-  margin-bottom: 25px;
-}
-
-/* Grid & Cards */
+/* Fix: Smooth Grid Layout */
 .results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 20px;
 }
 
@@ -121,68 +124,112 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 24px;
-  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
+  padding: 25px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .package-card:hover {
-  background: #1a1a1a;
+  background: #181818;
   border-color: var(--primary);
-  transform: translateY(-5px);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+}
+
+.trending-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .trending-item {
-  background: rgba(255,255,255,0.02);
-  padding: 15px;
+  background: #111;
+  padding: 16px;
   border-radius: 12px;
-  margin-bottom: 10px;
+  border: 1px solid var(--border);
   cursor: pointer;
-  border: 1px solid transparent;
+  transition: 0.2s;
 }
 
 .trending-item:hover {
   border-color: var(--primary);
+  background: #151515;
 }
 
-/* Modal Enhancements */
+/* --- Modal Fixed --- */
 .popup {
-  position: fixed; inset: 0; z-index: 2000;
-  display: flex; align-items: center; justify-content: center;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
 
 .popup-backdrop {
-  position: absolute; inset: 0;
-  background: rgba(0,0,0,0.8);
-  backdrop-filter: blur(8px);
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
 }
 
 .popup-content {
   position: relative;
-  background: #0d0d0d;
-  width: 90%;
-  max-width: 1100px;
-  height: 85vh;
+  background: #080808;
+  width: 100%;
+  max-width: 1000px;
+  max-height: 90vh;
   border-radius: 24px;
-  border: 1px solid var(--border);
-  padding: 40px;
-  overflow-y: auto;
-  box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+  border: 1px solid #222;
+  padding: 45px;
+  overflow-y: auto; /* Internal scrolling */
+  box-shadow: 0 40px 100px rgba(0,0,0,0.6);
+  z-index: 10001;
 }
 
+/* --- Stats Grid Fix --- */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 15px;
-  margin: 25px 0;
+  margin: 30px 0;
 }
 
 .stat-box {
-  background: #151515;
+  background: #111;
   padding: 20px;
   border-radius: 16px;
-  text-align: center;
   border: 1px solid var(--border);
+  text-align: center;
 }
 
+.stat-box strong {
+  display: block;
+  font-size: 1.4rem;
+  color: var(--primary);
+  margin-top: 5px;
+}
+
+/* --- Scrollbar Customization --- */
+.workspace-content::-webkit-scrollbar,
+.popup-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.workspace-content::-webkit-scrollbar-thumb,
+.popup-content::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 10px;
+}
+
+/* --- Utility --- */
 .hidden { display: none !important; }
+
+@media (max-width: 992px) {
+  .app-sidebar { width: 60px; }
+  .workspace-content { padding: 20px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}

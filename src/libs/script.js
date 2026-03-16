@@ -1,222 +1,88 @@
-const search=document.getElementById("search")
-const results=document.getElementById("results")
-const trending=document.getElementById("trending")
-const popup=document.getElementById("popup")
-const popupData=document.getElementById("popupData")
+let currentChart = null;
 
-/* trending packages */
+/* Initial Trending Load */
+const trendingList = ["react", "next", "vite", "tailwindcss", "typescript"];
+trendingList.forEach(name => {
+    const div = document.createElement("div");
+    div.className = "package";
+    div.innerHTML = `<strong>${name}</strong>`;
+    div.onclick = () => loadPackage(name);
+    document.getElementById("trending").appendChild(div);
+});
 
-const trendingList=[
-"react",
-"vue",
-"next",
-"vite",
-"express",
-"typescript",
-"tailwindcss"
-]
+/* Search with Debounce */
+let timer;
+document.getElementById("search").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+        const q = e.target.value.trim();
+        if (q.length > 1) fetchResults(q);
+    }, 400);
+});
 
-trendingList.forEach(pkg=>{
-
-const div=document.createElement("div")
-div.className="package"
-div.innerHTML=pkg
-
-div.onclick=()=>loadPackage(pkg)
-
-trending.appendChild(div)
-
-})
-
-
-/* search */
-
-search.addEventListener("input",()=>{
-
-const q=search.value
-
-if(q.length<2) return
-
-fetch(`https://registry.npmjs.org/-/v1/search?text=${q}&size=15`)
-.then(res=>res.json())
-.then(data=>{
-
-results.innerHTML=""
-
-data.objects.forEach(obj=>{
-
-const pkg=obj.package
-
-const div=document.createElement("div")
-
-div.className="package"
-
-div.innerHTML=`
-<strong>${pkg.name}</strong>
-<p>${pkg.description||""}</p>
-`
-
-div.onclick=()=>loadPackage(pkg.name)
-
-results.appendChild(div)
-
-})
-
-})
-
-})
-
-
-/* load package */
-
-async function loadPackage(name){
-
-popup.classList.remove("hidden")
-
-popupData.innerHTML="Loading..."
-
-try{
-
-const metaRes=await fetch(`https://registry.npmjs.org/${name}`)
-const meta=await metaRes.json()
-
-const latest=meta["dist-tags"].latest
-const data=meta.versions[latest]
-
-/* downloads */
-
-const dlRes=await fetch(`https://api.npmjs.org/downloads/range/last-month/${name}`)
-const downloads=await dlRes.json()
-
-/* github */
-
-let stars="N/A"
-let issues="N/A"
-
-if(data.repository){
-
-const repo=data.repository.url
-.replace("git+","")
-.replace(".git","")
-.replace("git://","https://")
-.replace("github.com","api.github.com/repos")
-
-const gh=await fetch(repo)
-const ghData=await gh.json()
-
-stars=ghData.stargazers_count
-issues=ghData.open_issues
-
+async function fetchResults(q) {
+    const res = await fetch(`https://registry.npmjs.org/-/v1/search?text=${q}&size=10`);
+    const data = await res.json();
+    document.getElementById("results").innerHTML = data.objects.map(obj => `
+        <div class="package" onclick="loadPackage('${obj.package.name}')">
+            <strong>${obj.package.name}</strong>
+            <p style="color:#888; font-size:14px; margin:5px 0;">${obj.package.description || ''}</p>
+        </div>
+    `).join('');
 }
 
-/* dependencies */
+async function loadPackage(name) {
+    const popup = document.getElementById("popup");
+    const content = document.getElementById("popupData");
+    popup.classList.remove("hidden");
+    content.innerHTML = "Loading...";
 
-let deps=""
+    try {
+        const [reg, dl] = await Promise.all([
+            fetch(`https://registry.npmjs.org/${name}`).then(r => r.json()),
+            fetch(`https://api.npmjs.org/downloads/range/last-month/${name}`).then(r => r.json())
+        ]);
 
-if(data.dependencies){
+        const latest = reg["dist-tags"].latest;
+        const ver = reg.versions[latest];
 
-Object.keys(data.dependencies)
-.slice(0,20)
-.forEach(d=>{
+        content.innerHTML = `
+            <h2>${name} <span style="color:#10b981; font-size:16px;">v${latest}</span></h2>
+            <div class="terminal">
+                <span>npm install ${name}</span>
+                <button class="copy" onclick="copyText('npm i ${name}')">Copy</button>
+            </div>
+            <div class="stats">
+                <div class="stat">License<br><strong>${ver.license || 'N/A'}</strong></div>
+                <div class="stat">Downloads<br><strong>${dl.downloads.reduce((a, b) => a + b.downloads, 0).toLocaleString()}</strong></div>
+                <div class="stat">Deps<br><strong>${Object.keys(ver.dependencies || {}).length}</strong></div>
+                <div class="stat">Files<br><strong>${ver.dist.fileCount || 'N/A'}</strong></div>
+            </div>
+            <canvas id="chart"></canvas>
+            <h3>Dependencies</h3>
+            <div class="deps">${Object.keys(ver.dependencies || {}).map(d => `<div>${d}</div>`).join('') || 'None'}</div>
+            <h3>README</h3>
+            <div class="readme" style="background:#020202; padding:20px; border-radius:10px; margin-top:10px;">
+                ${marked.parse(reg.readme || "No README available.")}
+            </div>
+        `;
 
-deps+=`<div>${d}</div>`
-
-})
-
+        renderChart(dl.downloads);
+    } catch (e) { content.innerHTML = "Error loading data."; }
 }
 
-/* render popup */
-
-popupData.innerHTML=`
-
-<h2>${name}</h2>
-
-<div class="terminal">
-<span>$ npm install ${name}</span>
-<button class="copy" onclick="copyCmd('npm install ${name}')">Copy</button>
-</div>
-
-<div class="stats">
-
-<div class="stat">
-Version<br>
-<strong>${latest}</strong>
-</div>
-
-<div class="stat">
-License<br>
-<strong>${data.license||"N/A"}</strong>
-</div>
-
-<div class="stat">
-GitHub Stars<br>
-<strong>${stars}</strong>
-</div>
-
-<div class="stat">
-Open Issues<br>
-<strong>${issues}</strong>
-</div>
-
-</div>
-
-<canvas id="chart"></canvas>
-
-<h3>Dependencies</h3>
-
-<div class="deps">${deps||"No dependencies"}</div>
-
-<h3>README</h3>
-
-<div class="readme">
-${marked.parse(meta.readme||"No README")}
-</div>
-
-`
-
-/* chart */
-
-const labels=downloads.downloads.map(d=>d.day)
-const values=downloads.downloads.map(d=>d.downloads)
-
-new Chart(document.getElementById("chart"),{
-
-type:"line",
-
-data:{
-labels:labels,
-datasets:[{
-label:"Downloads",
-data:values
-}]
+function renderChart(data) {
+    const ctx = document.getElementById('chart').getContext('2d');
+    if (currentChart) currentChart.destroy();
+    currentChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(d => d.day.slice(5)),
+            datasets: [{ label: 'Downloads', data: data.map(d => d.downloads), borderColor: '#10b981', tension: 0.3 }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { display: false } } }
+    });
 }
 
-})
-
-}catch(err){
-
-popupData.innerHTML="Failed to load package"
-
-}
-
-}
-
-
-/* copy install */
-
-function copyCmd(text){
-
-navigator.clipboard.writeText(text)
-
-alert("Copied: "+text)
-
-}
-
-
-/* close popup */
-
-function closePopup(){
-
-popup.classList.add("hidden")
-
-}
+window.copyText = (t) => { navigator.clipboard.writeText(t); alert("Copied!"); };
+window.closePopup = () => { document.getElementById("popup").classList.add("hidden"); };

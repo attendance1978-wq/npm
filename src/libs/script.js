@@ -1,91 +1,83 @@
-/* Logic stays similar but maps to the new Classes */
 const search = document.getElementById("search");
 const results = document.getElementById("results");
 const trending = document.getElementById("trending");
 const popup = document.getElementById("popup");
 const popupData = document.getElementById("popupData");
 
-const list = ["react", "next", "vite", "typescript", "three", "express"];
-list.forEach(name => {
-  const div = document.createElement("div");
-  div.className = "trending-item";
-  div.innerHTML = `<strong>${name}</strong>`;
-  div.onclick = () => loadPackage(name);
-  trending.appendChild(div);
+const trendingList = ["react", "vue", "next", "vite", "express", "typescript", "tailwindcss"];
+
+// 1. Initialize Trending
+trendingList.forEach(pkg => {
+    const div = document.createElement("div");
+    div.className = "tag";
+    div.innerText = pkg;
+    div.onclick = () => loadPackage(pkg);
+    trending.appendChild(div);
 });
 
-let timer;
-search.addEventListener("input", (e) => {
-  clearTimeout(timer);
-  timer = setTimeout(() => {
-    const q = e.target.value.trim();
-    if (q.length > 1) fetchResults(q);
-  }, 400);
+// 2. Search Event with Debounce
+let timeout = null;
+search.addEventListener("input", () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+        const q = search.value;
+        if (q.length < 2) return;
+
+        fetch(`https://registry.npmjs.org/-/v1/search?text=${q}&size=12`)
+            .then(res => res.json())
+            .then(data => {
+                results.innerHTML = "";
+                data.objects.forEach(obj => {
+                    const pkg = obj.package;
+                    const card = document.createElement("div");
+                    card.className = "package-card";
+                    card.innerHTML = `
+                        <h4>${pkg.name}</h4>
+                        <p>${pkg.description || "No description provided."}</p>
+                        <div style="margin-top:10px; font-size:11px; color:#444;">v${pkg.version}</div>
+                    `;
+                    card.onclick = () => loadPackage(pkg.name);
+                    results.appendChild(card);
+                });
+            });
+    }, 400);
 });
 
-async function fetchResults(q) {
-  const res = await fetch(`https://registry.npmjs.org/-/v1/search?text=${q}&size=12`);
-  const data = await res.json();
-  results.innerHTML = data.objects.map(obj => `
-    <div class="package-card" onclick="loadPackage('${obj.package.name}')">
-      <div style="color:var(--primary); font-size:12px; margin-bottom:5px;">v${obj.package.version}</div>
-      <h4 style="margin:0">${obj.package.name}</h4>
-      <p style="color:#666; font-size:14px; margin-top:10px;">${obj.package.description || 'No description'}</p>
-    </div>
-  `).join('');
-}
-
+// 3. Load Details
 async function loadPackage(name) {
-  popup.classList.remove("hidden");
-  popupData.innerHTML = "Loading...";
+    popup.classList.remove("hidden");
+    popupData.innerHTML = "<p>Fetching package data...</p>";
 
-  const [meta, dls] = await Promise.all([
-    fetch(`https://registry.npmjs.org/${name}`).then(r => r.json()),
-    fetch(`https://api.npmjs.org/downloads/range/last-month/${name}`).then(r => r.json())
-  ]);
+    try {
+        const res = await fetch(`https://registry.npmjs.org/${name}`);
+        const meta = await res.json();
+        const latest = meta["dist-tags"].latest;
+        const data = meta.versions[latest];
 
-  const latest = meta["dist-tags"].latest;
-  const ver = meta.versions[latest];
-
-  popupData.innerHTML = `
-    <div class="d-flex justify-content-between align-items-start">
-      <div>
-        <h1 class="mb-0">${name}</h1>
-        <p class="text-secondary">${ver.description || ''}</p>
-      </div>
-      <div class="badge bg-success p-2">v${latest}</div>
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat-box">🏷️<br><strong>${latest}</strong></div>
-      <div class="stat-box">⚖️<br><strong>${ver.license || 'N/A'}</strong></div>
-      <div class="stat-box">⭐<br><strong>${Math.floor(Math.random()*5000)}</strong></div>
-      <div class="stat-box">📥<br><strong>${dls.downloads.slice(-1)[0].downloads.toLocaleString()}</strong></div>
-    </div>
-
-    <canvas id="chart" height="150"></canvas>
-    
-    <div style="background:#000; padding:20px; border-radius:15px; margin-top:20px;">
-        <code style="color:var(--primary)">npm install ${name}</code>
-    </div>
-
-    <div class="mt-5">${marked.parse(meta.readme || "No README")}</div>
-  `;
-
-  new Chart(document.getElementById('chart'), {
-    type: 'line',
-    data: {
-      labels: dls.downloads.map(d => d.day.slice(5)),
-      datasets: [{
-        data: dls.downloads.map(d => d.downloads),
-        borderColor: '#10b981',
-        tension: 0.3,
-        fill: true,
-        backgroundColor: 'rgba(16, 185, 129, 0.05)'
-      }]
-    },
-    options: { plugins: { legend: { display: false } }, scales: { y: { display: false } } }
-  });
+        popupData.innerHTML = `
+            <h2 style="color:var(--accent);">${name}</h2>
+            <p style="color:#888;">${data.description || ""}</p>
+            <div style="background:#111; padding:15px; border-radius:10px; margin: 20px 0; font-family:monospace;">
+                $ npm install ${name}
+            </div>
+            <div class="readme-content" style="border-top:1px solid #222; padding-top:20px;">
+                ${marked.parse(meta.readme || "No README available.")}
+            </div>
+        `;
+    } catch (e) {
+        popupData.innerHTML = "Error loading package.";
+    }
 }
 
-window.closePopup = () => popup.classList.add("hidden");
+// 4. Utilities
+function closePopup() {
+    popup.classList.add("hidden");
+}
+
+// Shortcut ⌘K / Ctrl+K
+window.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        search.focus();
+    }
+});

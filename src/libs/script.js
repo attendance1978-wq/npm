@@ -1,121 +1,91 @@
+/* Logic stays similar but maps to the new Classes */
 const search = document.getElementById("search");
 const results = document.getElementById("results");
 const trending = document.getElementById("trending");
 const popup = document.getElementById("popup");
 const popupData = document.getElementById("popupData");
 
-let activeChart = null;
-
-/* Trending Setup */
-const trendingItems = ["react", "next", "vite", "typescript", "three"];
-trendingItems.forEach(name => {
+const list = ["react", "next", "vite", "typescript", "three", "express"];
+list.forEach(name => {
   const div = document.createElement("div");
-  div.className = "package";
+  div.className = "trending-item";
   div.innerHTML = `<strong>${name}</strong>`;
   div.onclick = () => loadPackage(name);
   trending.appendChild(div);
 });
 
-/* Search Debounce */
 let timer;
 search.addEventListener("input", (e) => {
   clearTimeout(timer);
   timer = setTimeout(() => {
     const q = e.target.value.trim();
-    if (q.length > 1) performSearch(q);
+    if (q.length > 1) fetchResults(q);
   }, 400);
 });
 
-async function performSearch(q) {
+async function fetchResults(q) {
   const res = await fetch(`https://registry.npmjs.org/-/v1/search?text=${q}&size=12`);
   const data = await res.json();
   results.innerHTML = data.objects.map(obj => `
-    <div class="col">
-      <div class="package" onclick="loadPackage('${obj.package.name}')">
-        <strong>${obj.package.name}</strong>
-        <p>${obj.package.description || ''}</p>
-      </div>
+    <div class="package-card" onclick="loadPackage('${obj.package.name}')">
+      <div style="color:var(--primary); font-size:12px; margin-bottom:5px;">v${obj.package.version}</div>
+      <h4 style="margin:0">${obj.package.name}</h4>
+      <p style="color:#666; font-size:14px; margin-top:10px;">${obj.package.description || 'No description'}</p>
     </div>
   `).join('');
 }
 
 async function loadPackage(name) {
   popup.classList.remove("hidden");
-  popupData.innerHTML = "<p class='text-center'>Fetching registry data...</p>";
+  popupData.innerHTML = "Loading...";
 
-  try {
-    const [metaRes, dlRes] = await Promise.all([
-      fetch(`https://registry.npmjs.org/${name}`),
-      fetch(`https://api.npmjs.org/downloads/range/last-month/${name}`)
-    ]);
+  const [meta, dls] = await Promise.all([
+    fetch(`https://registry.npmjs.org/${name}`).then(r => r.json()),
+    fetch(`https://api.npmjs.org/downloads/range/last-month/${name}`).then(r => r.json())
+  ]);
 
-    const meta = await metaRes.json();
-    const dls = await dlRes.json();
-    const latest = meta["dist-tags"].latest;
-    const versionData = meta.versions[latest];
+  const latest = meta["dist-tags"].latest;
+  const ver = meta.versions[latest];
 
-    // Mocking Stars/Issues for Demo (requires GitHub API for real data)
-    const stars = Math.floor(Math.random() * 5000).toLocaleString();
-    const issues = Math.floor(Math.random() * 100);
-
-    popupData.innerHTML = `
-      <h2 class="mb-1">${name}</h2>
-      <span class="badge bg-success mb-3">v${latest}</span>
-
-      <div class="terminal">
-        <span>$ npm install ${name}</span>
-        <button class="btn btn-sm btn-success" onclick="copyText('npm i ${name}')">Copy</button>
+  popupData.innerHTML = `
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <h1 class="mb-0">${name}</h1>
+        <p class="text-secondary">${ver.description || ''}</p>
       </div>
+      <div class="badge bg-success p-2">v${latest}</div>
+    </div>
 
-      <div class="stats mb-4">
-        <div class="stat stat-v">Version<br><strong>${latest}</strong></div>
-        <div class="stat stat-l">License<br><strong>${versionData.license || 'N/A'}</strong></div>
-        <div class="stat stat-s">Stars<br><strong>${stars}</strong></div>
-        <div class="stat stat-i">Issues<br><strong>${issues}</strong></div>
-      </div>
+    <div class="stats-grid">
+      <div class="stat-box">🏷️<br><strong>${latest}</strong></div>
+      <div class="stat-box">⚖️<br><strong>${ver.license || 'N/A'}</strong></div>
+      <div class="stat-box">⭐<br><strong>${Math.floor(Math.random()*5000)}</strong></div>
+      <div class="stat-box">📥<br><strong>${dls.downloads.slice(-1)[0].downloads.toLocaleString()}</strong></div>
+    </div>
 
-      <canvas id="chart" height="200"></canvas>
+    <canvas id="chart" height="150"></canvas>
+    
+    <div style="background:#000; padding:20px; border-radius:15px; margin-top:20px;">
+        <code style="color:var(--primary)">npm install ${name}</code>
+    </div>
 
-      <div class="readme mt-4">
-        ${marked.parse(meta.readme || "# No README available")}
-      </div>
-    `;
+    <div class="mt-5">${marked.parse(meta.readme || "No README")}</div>
+  `;
 
-    renderChart(dls.downloads);
-  } catch (e) {
-    popupData.innerHTML = "<p class='text-danger'>Error loading package metadata.</p>";
-  }
-}
-
-function renderChart(downloads) {
-  const ctx = document.getElementById('chart').getContext('2d');
-  if (activeChart) activeChart.destroy();
-
-  activeChart = new Chart(ctx, {
+  new Chart(document.getElementById('chart'), {
     type: 'line',
     data: {
-      labels: downloads.map(d => d.day.split('-').slice(1).join('/')),
+      labels: dls.downloads.map(d => d.day.slice(5)),
       datasets: [{
-        label: 'Daily Downloads',
-        data: downloads.map(d => d.downloads),
+        data: dls.downloads.map(d => d.downloads),
         borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        tension: 0.3,
         fill: true,
-        tension: 0.3
+        backgroundColor: 'rgba(16, 185, 129, 0.05)'
       }]
     },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { grid: { color: '#222' } } }
-    }
+    options: { plugins: { legend: { display: false } }, scales: { y: { display: false } } }
   });
 }
 
-function copyText(t) {
-  navigator.clipboard.writeText(t);
-  alert("Command copied to clipboard!");
-}
-
-function closePopup() {
-  popup.classList.add("hidden");
-}
+window.closePopup = () => popup.classList.add("hidden");
